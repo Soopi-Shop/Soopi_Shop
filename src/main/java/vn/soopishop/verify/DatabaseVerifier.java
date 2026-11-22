@@ -13,7 +13,6 @@ public class DatabaseVerifier {
 
     private static final List<String> TABLES = List.of(
             "users",
-            "refresh_tokens",
             "user_addresses",
             "categories",
             "brands",
@@ -42,7 +41,7 @@ public class DatabaseVerifier {
     }
 
     public void verify() {
-        System.out.println("=== 1. ROW COUNTS FOR ALL 19 TABLES ===");
+        System.out.println("=== 1. ROW COUNTS FOR ALL 18 TABLES ===");
         for (String table : TABLES) {
             Integer count = jdbc.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
             System.out.printf("  %-28s : %d%n", table, count);
@@ -59,14 +58,21 @@ public class DatabaseVerifier {
             }
         });
 
-        System.out.println("\n=== 3. VERIFY PASSWORD HASHES (NO PLAINTEXT) ===");
-        List<Map<String, Object>> badPasswords = jdbc.queryForList(
-                "SELECT id, email FROM users WHERE password_hash NOT LIKE '$2a$%' AND password_hash NOT LIKE '$2b$%' AND password_hash NOT LIKE '$argon2%'"
+        System.out.println("\n=== 3. VERIFY CLERK USER MAPPING (NO LOCAL PASSWORD STORAGE) ===");
+        Integer passwordColCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash'",
+                Integer.class
         );
-        if (!badPasswords.isEmpty()) {
-            throw new IllegalStateException("FAIL: Found non-hashed passwords: " + badPasswords);
+        if (passwordColCount != null && passwordColCount > 0) {
+            throw new IllegalStateException("FAIL: users.password_hash column should not exist when using Clerk.");
         }
-        System.out.println("  PASS: All users have valid bcrypt/argon2 password hashes.");
+        List<Map<String, Object>> badClerkIds = jdbc.queryForList(
+                "SELECT id, email, clerk_user_id FROM users WHERE clerk_user_id IS NULL OR clerk_user_id NOT LIKE 'user_%'"
+        );
+        if (!badClerkIds.isEmpty()) {
+            throw new IllegalStateException("FAIL: Found invalid clerk_user_id values: " + badClerkIds);
+        }
+        System.out.println("  PASS: All users have valid Clerk user IDs (user_*) and no password_hash column exists.");
 
         System.out.println("\n=== 4. VERIFY INVENTORY LEDGER CONSISTENCY ===");
         List<Map<String, Object>> mismatches = jdbc.queryForList(
@@ -82,5 +88,37 @@ public class DatabaseVerifier {
             throw new IllegalStateException("FAIL: Inventory ledger mismatch: " + mismatches);
         }
         System.out.println("  PASS: Every variant stock_quantity matches SUM(inventory_transactions.quantity_change).");
+
+        System.out.println("\n=== 5. VERIFY V2 INTEGRITY & PERFORMANCE HARDENING ===");
+        Integer nonRestrictReviewFks = jdbc.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM pg_constraint
+                WHERE conrelid = 'reviews'::regclass
+                  AND contype = 'f'
+                  AND confdeltype <> 'r'
+                """,
+                Integer.class
+        );
+        if (nonRestrictReviewFks != null && nonRestrictReviewFks > 0) {
+            throw new IllegalStateException("FAIL: Expected all reviews foreign keys to use ON DELETE RESTRICT.");
+        }
+
+        List<String> requiredV2Indexes = List.of(
+                "idx_orders_user_voucher_active",
+                "idx_products_name_trgm",
+                "idx_product_variants_sku_trgm"
+        );
+        for (String idx : requiredV2Indexes) {
+            Integer exists = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname = ?",
+                    Integer.class,
+                    idx
+            );
+            if (exists == null || exists == 0) {
+                throw new IllegalStateException("FAIL: Missing V2 index: " + idx);
+            }
+        }
+        System.out.println("  PASS: V2 hardening verified (reviews FKs = RESTRICT, voucher & pg_trgm indexes present).");
     }
 }

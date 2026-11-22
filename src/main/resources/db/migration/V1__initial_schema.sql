@@ -1,35 +1,22 @@
 -- ============================================================================
--- Soopi Shop - Flyway V1 Initial PostgreSQL Schema (19 tables across 6 domains)
+-- Soopi Shop - Flyway V1 Initial PostgreSQL Schema (18 tables across 6 domains)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- 1. NGUOI DUNG & BAO MAT (RBAC)
+-- 1. NGUOI DUNG & BAO MAT (CLERK AUTH MAPPING + RBAC)
 -- ----------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS users (
-    id                      BIGSERIAL PRIMARY KEY,
-    full_name               VARCHAR(150) NOT NULL,
-    email                   VARCHAR(255) NOT NULL UNIQUE,
-    phone                   VARCHAR(20),
-    password_hash           TEXT NOT NULL,
-    role                    VARCHAR(20) NOT NULL CHECK (role IN ('CUSTOMER', 'STAFF', 'ADMIN')),
-    status                  VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'LOCKED')),
-    failed_login_attempts   INT NOT NULL DEFAULT 0 CHECK (failed_login_attempts >= 0),
-    locked_until            TIMESTAMPTZ,
-    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id              BIGSERIAL PRIMARY KEY,
+    clerk_user_id   VARCHAR(255) NOT NULL UNIQUE,
+    full_name       VARCHAR(150) NOT NULL,
+    email           VARCHAR(255) NOT NULL UNIQUE,
+    phone           VARCHAR(20),
+    role            VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER' CHECK (role IN ('CUSTOMER', 'STAFF', 'ADMIN')),
+    status          VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE', 'LOCKED')),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id          BIGSERIAL PRIMARY KEY,
-    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token_hash  TEXT NOT NULL UNIQUE,
-    expires_at  TIMESTAMPTZ NOT NULL,
-    revoked_at  TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens (user_id);
 
 CREATE TABLE IF NOT EXISTS user_addresses (
     id              BIGSERIAL PRIMARY KEY,

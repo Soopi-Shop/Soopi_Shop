@@ -47,11 +47,6 @@ public class DotenvEnvironmentPostProcessor implements EnvironmentPostProcessor 
         props.put("spring.datasource.username", username);
         props.put("spring.datasource.password", password);
 
-        String seedPassword = dotenv.get("SEED_DEFAULT_PASSWORD");
-        if (seedPassword != null && !seedPassword.isBlank()) {
-            props.put("SEED_DEFAULT_PASSWORD", seedPassword);
-        }
-
         environment.getPropertySources().addFirst(new MapPropertySource("dotenvDatabaseUrl", props));
     }
 }

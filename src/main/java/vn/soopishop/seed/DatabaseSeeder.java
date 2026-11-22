@@ -1,8 +1,6 @@
 package vn.soopishop.seed;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -20,10 +18,6 @@ public class DatabaseSeeder {
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate txTemplate;
-    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(10);
-
-    @Value("${SEED_DEFAULT_PASSWORD:Soopi@123}")
-    private String defaultSeedPassword;
 
     public DatabaseSeeder(JdbcTemplate jdbc, TransactionTemplate txTemplate) {
         this.jdbc = jdbc;
@@ -32,8 +26,7 @@ public class DatabaseSeeder {
 
     public void seed() {
         txTemplate.executeWithoutResult(status -> {
-            String passwordHash = passwordEncoder.encode(defaultSeedPassword);
-            Map<String, Long> userMap = seedUsers(passwordHash);
+            Map<String, Long> userMap = seedUsers();
             seedUserAddresses(userMap);
             Map<String, Long> categoryMap = seedCategories();
             Map<String, Long> brandMap = seedBrands();
@@ -52,37 +45,37 @@ public class DatabaseSeeder {
             seedReviews(userMap, productMap, orderMap);
         });
 
-        System.out.println("Seed completed successfully.");
-        System.out.println("Default password for all seeded users: " + defaultSeedPassword);
+        System.out.println("Seed completed successfully (Clerk auth mapping enabled).");
     }
 
-    private Map<String, Long> seedUsers(String passwordHash) {
-        record UserDef(String name, String email, String phone, String role, String status, int failed, Timestamp lockedUntil) {}
-        Timestamp oneHourLater = Timestamp.from(Instant.now().plus(1, ChronoUnit.HOURS));
+    private Map<String, Long> seedUsers() {
+        record UserDef(String clerkUserId, String name, String email, String phone, String role, String status) {}
         List<UserDef> users = List.of(
-                new UserDef("Nguyen Hoang Admin", "admin@soopishop.vn", "0901000001", "ADMIN", "ACTIVE", 0, null),
-                new UserDef("Tran Minh Staff", "staff@soopishop.vn", "0901000002", "STAFF", "ACTIVE", 0, null),
-                new UserDef("Le Van Khach Mot", "khach1@gmail.com", "0912345001", "CUSTOMER", "ACTIVE", 0, null),
-                new UserDef("Pham Thi Khach Hai", "khach2@gmail.com", "0912345002", "CUSTOMER", "ACTIVE", 0, null),
-                new UserDef("Hoang Anh Khach Ba", "khach3@gmail.com", "0912345003", "CUSTOMER", "ACTIVE", 0, null),
-                new UserDef("Tai Khoan Bi Khoa", "locked@gmail.com", "0912345999", "CUSTOMER", "LOCKED", 5, oneHourLater)
+                new UserDef("user_seed_admin_01", "Nguyen Hoang Admin", "admin@soopishop.vn", "0901000001", "ADMIN", "ACTIVE"),
+                new UserDef("user_seed_staff_01", "Tran Minh Staff", "staff@soopishop.vn", "0901000002", "STAFF", "ACTIVE"),
+                new UserDef("user_seed_khach1_01", "Le Van Khach Mot", "khach1@gmail.com", "0912345001", "CUSTOMER", "ACTIVE"),
+                new UserDef("user_seed_khach2_01", "Pham Thi Khach Hai", "khach2@gmail.com", "0912345002", "CUSTOMER", "ACTIVE"),
+                new UserDef("user_seed_khach3_01", "Hoang Anh Khach Ba", "khach3@gmail.com", "0912345003", "CUSTOMER", "ACTIVE"),
+                new UserDef("user_seed_locked_01", "Tai Khoan Bi Khoa", "locked@gmail.com", "0912345999", "CUSTOMER", "LOCKED")
         );
 
         Map<String, Long> map = new HashMap<>();
         for (UserDef u : users) {
             Long id = jdbc.queryForObject(
                     """
-                    INSERT INTO users (full_name, email, phone, password_hash, role, status, failed_login_attempts, locked_until)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (email) DO UPDATE SET
+                    INSERT INTO users (clerk_user_id, full_name, email, phone, role, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (clerk_user_id) DO UPDATE SET
                       full_name = EXCLUDED.full_name,
+                      email = EXCLUDED.email,
                       phone = EXCLUDED.phone,
                       role = EXCLUDED.role,
-                      status = EXCLUDED.status
+                      status = EXCLUDED.status,
+                      updated_at = NOW()
                     RETURNING id
                     """,
                     Long.class,
-                    u.name(), u.email(), u.phone(), passwordHash, u.role(), u.status(), u.failed(), u.lockedUntil()
+                    u.clerkUserId(), u.name(), u.email(), u.phone(), u.role(), u.status()
             );
             map.put(u.email(), id);
         }
