@@ -1,21 +1,37 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: soopi_shop_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-soopi_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soopi_dev_password_change_me}
-      POSTGRES_DB: ${POSTGRES_DB:-soopi_shop}
+  # ---------------------------------------------------------
+  # Spring Boot Backend (Production - Using Cloud Infrastructure)
+  # ---------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soopi_shop_backend_prod
+    restart: always
     ports:
-      - "${POSTGRES_PORT:-5433}:5432"
-    volumes:
-      - soopi_shop_pgdata:/var/lib/postgresql/data
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      SERVER_PORT: 8000
+      SPRING_MAIN_WEB_APPLICATION_TYPE: servlet
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      # Cloud PostgreSQL Connection URL (e.g. Supabase, Neon, AWS RDS, Cloud SQL)
+      DATABASE_URL: ${DATABASE_URL}
+      # Cloud Redis Connection (e.g. Upstash, AWS ElastiCache, Redis Cloud)
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
+      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-}
+      SPRING_DATA_REDIS_SSL_ENABLED: ${SPRING_DATA_REDIS_SSL_ENABLED:-false}
+      # Authentication & Security
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI:-}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soopi_user} -d ${POSTGRES_DB:-soopi_shop}"]
-      interval: 5s
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/actuator/health"]
+      interval: 15s
       timeout: 5s
-      retries: 10
+      retries: 3
+      start_period: 30s
+    networks:
+      - soopi_prod_network
 
-volumes:
-  soopi_shop_pgdata:
+networks:
+  soopi_prod_network:
+    driver: bridge

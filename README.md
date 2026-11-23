@@ -40,20 +40,46 @@ POSTGRES_USER=soopi_user
 POSTGRES_PASSWORD=soopi_dev_password_change_me
 POSTGRES_DB=soopi_shop
 POSTGRES_PORT=5433
+REDIS_PORT=6379
+APP_PORT=8000
 DATABASE_URL=postgresql://soopi_user:soopi_dev_password_change_me@localhost:5433/soopi_shop
 ```
 
-### Bước 2: Khởi chạy PostgreSQL 16 qua Docker Compose
+### Bước 2: Khởi chạy môi trường qua Docker Compose
+
+#### A. Môi trường Development (Hỗ trợ Hot Reloading, Spring Boot port 8000)
+Môi trường dev bao gồm: Spring Boot backend (port 8000, debug port 5005), PostgreSQL 16 (port 5433) và Redis 7 (port 6379). Toàn bộ thư mục source code được mount vào container và kích hoạt Spring Boot DevTools để hot reload ngay khi code thay đổi:
+
 ```bash
+docker compose -f docker-compose.dev.yml up -d
+# hoặc gõ ngắn gọn:
 docker compose up -d
 ```
 
-> **Lưu ý khi pull bản cập nhật Schema mới (chuyển sang Clerk 18 bảng + V2):**  
-> Nếu máy bạn từng chạy bản `V1` cũ (19 bảng có `refresh_tokens`), hãy xóa volume cũ trước khi khởi chạy lại để tránh lệch Flyway checksum:
-> ```bash
-> docker compose down -v
-> docker compose up -d
-> ```
+- **Spring Boot Endpoint:** `http://localhost:8000`
+- **Swagger UI:** `http://localhost:8000/swagger-ui/index.html`
+- **Actuator Health:** `http://localhost:8000/actuator/health`
+- **Hot Reloading:** Khi bạn chỉnh sửa mã nguồn hoặc compile trong IDE (IntelliJ Ctrl+F9 / Eclipse), DevTools tự động reload application context trong ~1-2s mà không cần restart container.
+- **Remote Debug:** Port `5005` sẵn sàng kết nối JVM debugger từ IDE.
+
+Xem logs backend:
+```bash
+docker compose logs -f backend
+```
+
+#### B. Môi trường Production (Multi-stage build siêu nhẹ, tối ưu bảo mật)
+```bash
+docker compose up -d --build
+```
+- Sử dụng multi-stage build (`Dockerfile` / `Dockerfile.dev`) với JRE 21 Alpine runtime.
+- Lắng nghe trên port 8000 (`http://localhost:8000`), có healthcheck tích hợp.
+
+Dừng toàn bộ container:
+```bash
+docker compose -f docker-compose.dev.yml down
+# hoặc nếu muốn xóa luôn volume database để reset hoàn toàn:
+docker compose -f docker-compose.dev.yml down -v
+```
 
 ### Bước 3: Chạy Flyway Migration, Seed dữ liệu mẫu & Kiểm chứng tự động
 

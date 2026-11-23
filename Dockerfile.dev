@@ -1,0 +1,18 @@
+# ==============================================================================
+# Development Dockerfile for Soopi Shop Backend
+# Features: Hot Reloading via Spring Boot DevTools, Remote Debugging (port 5005)
+# ==============================================================================
+FROM maven:3.9.9-eclipse-temurin-21-alpine
+
+WORKDIR /app
+
+# Expose Spring Boot web port and remote debug port
+EXPOSE 8000 5005
+
+# Environment variables for dev
+ENV SERVER_PORT=8000 \
+    SPRING_MAIN_WEB_APPLICATION_TYPE=servlet \
+    SPRING_DEVTOOLS_RESTART_ENABLED=true
+
+# Keep maven dependencies cached in named volume, run Spring Boot with devtools and remote debugging enabled
+ENTRYPOINT ["mvn", "spring-boot:run", "-Dspring-boot.run.jvmArguments=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"]
