@@ -1,7 +1,8 @@
+# ==============================================================================
+# Docker Compose - Production Environment
+# Spring Boot Backend sử dụng hạ tầng Cloud (Managed PostgreSQL, Redis, Clerk OAuth2)
+# ==============================================================================
 services:
-  # ---------------------------------------------------------
-  # Spring Boot Backend (Production - Using Cloud Infrastructure)
-  # ---------------------------------------------------------
   backend:
     build:
       context: .
@@ -9,20 +10,11 @@ services:
     container_name: soopi_shop_backend_prod
     restart: always
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${SERVER_PORT:-8000}:8000"
     environment:
-      SERVER_PORT: 8000
-      SPRING_MAIN_WEB_APPLICATION_TYPE: servlet
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      # Cloud PostgreSQL Connection URL (e.g. Supabase, Neon, AWS RDS, Cloud SQL)
-      DATABASE_URL: ${DATABASE_URL}
-      # Cloud Redis Connection (e.g. Upstash, AWS ElastiCache, Redis Cloud)
-      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST}
-      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT:-6379}
-      SPRING_DATA_REDIS_PASSWORD: ${SPRING_DATA_REDIS_PASSWORD:-}
-      SPRING_DATA_REDIS_SSL_ENABLED: ${SPRING_DATA_REDIS_SSL_ENABLED:-false}
-      # Authentication & Security
-      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI:-}
+      SPRING_PROFILES_ACTIVE: prod
+      # Production optimizations
+      SPRING_DEVTOOLS_RESTART_ENABLED: "false"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/actuator/health"]
       interval: 15s

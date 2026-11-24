@@ -1,4 +1,7 @@
-# Default docker-compose points to development environment
+# ==============================================================================
+# Docker Compose - Local Development Environment
+# Dịch vụ: PostgreSQL 16 (port 5433), Redis 7 (port 6379), Spring Boot Dev (port 8000, debug 5005)
+# ==============================================================================
 services:
   postgres:
     image: postgres:16-alpine
@@ -9,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soopi_dev_password_change_me}
       POSTGRES_DB: ${POSTGRES_DB:-soopi_shop}
     ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+      - "5433:5432"
     volumes:
       - soopi_shop_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -43,18 +46,16 @@ services:
     container_name: soopi_shop_backend
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${SERVER_PORT:-8000}:8000"
       - "5005:5005"
     environment:
-      SERVER_PORT: 8000
-      SPRING_MAIN_WEB_APPLICATION_TYPE: servlet
       SPRING_PROFILES_ACTIVE: dev
-      DATABASE_URL: postgresql://${POSTGRES_USER:-soopi_user}:${POSTGRES_PASSWORD:-soopi_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-soopi_shop}
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
+      # Hot Reload DevTools
       SPRING_DEVTOOLS_RESTART_ENABLED: "true"
-      SPRING_DEVTOOLS_RESTART_POLL_INTERVAL: "2s"
-      SPRING_DEVTOOLS_RESTART_QUIET_PERIOD: "1s"
+      SPRING_DEVTOOLS_RESTART_POLL_INTERVAL: "1s"
+      SPRING_DEVTOOLS_RESTART_QUIET_PERIOD: "400ms"
+    env_file:
+      - .env.example
     volumes:
       - .:/app
       - soopi_shop_m2_cache:/root/.m2
