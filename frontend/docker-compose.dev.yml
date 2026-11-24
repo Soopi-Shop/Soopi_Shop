@@ -1,0 +1,28 @@
+# ==============================================================================
+# Docker Compose - Frontend Local Development Environment
+# Features: Hot Reloading, Bind mount with isolated container node_modules
+# ==============================================================================
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: soopi_shop_frontend_dev
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_DEV_PORT:-5173}:5173"
+    env_file:
+      - path: .env.example
+        required: false
+      - path: .env.local
+        required: false
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - soopi_network
+
+networks:
+  soopi_network:
+    name: soopi_network
+    driver: bridge

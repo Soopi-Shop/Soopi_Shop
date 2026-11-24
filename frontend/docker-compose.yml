@@ -1,0 +1,29 @@
+# ==============================================================================
+# Docker Compose - Frontend Production Environment
+# Serves optimized SPA build with Nginx
+# ==============================================================================
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api}
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
+    container_name: soopi_shop_frontend_prod
+    restart: always
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - soopi_prod_network
+
+networks:
+  soopi_prod_network:
+    name: soopi_prod_network
+    driver: bridge
