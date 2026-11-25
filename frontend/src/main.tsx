@@ -16,12 +16,30 @@ const queryClient = new QueryClient({
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
+const isClerkConfigured = Boolean(
+  PUBLISHABLE_KEY &&
+    PUBLISHABLE_KEY !== 'pk_test_xxx' &&
+    !PUBLISHABLE_KEY.includes('your_clerk_publishable_key'),
+)
+
+if (!isClerkConfigured) {
+  console.warn(
+    '[Clerk] Missing or placeholder VITE_CLERK_PUBLISHABLE_KEY. Running in fallback mode without ClerkProvider.',
+  )
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    {isClerkConfigured && PUBLISHABLE_KEY ? (
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+        <QueryClientProvider client={queryClient}>
+          <App />
+        </QueryClientProvider>
+      </ClerkProvider>
+    ) : (
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>
-    </ClerkProvider>
+    )}
   </StrictMode>,
 )
