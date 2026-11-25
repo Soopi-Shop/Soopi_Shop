@@ -15,6 +15,9 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       # Production optimizations
       SPRING_DEVTOOLS_RESTART_ENABLED: "false"
+    env_file:
+      - path: .env
+        required: false
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/actuator/health"]
       interval: 15s
@@ -26,4 +29,5 @@ services:
 
 networks:
   soopi_prod_network:
+    name: soopi_prod_network
     driver: bridge

@@ -102,7 +102,7 @@ REDIS_PORT=6379
 REDIS_PASSWORD=
 
 # ==== Clerk OAuth2 ====
-CLERK_ISSUER_URI=https://api.clerk.dev
+CLERK_ISSUER_URI=
 CLERK_SECRET_KEY=your-clerk-secret-key
 ```
 
@@ -114,7 +114,7 @@ CLERK_SECRET_KEY=your-clerk-secret-key
 
 #### 🔧 Môi trường Development (khuyên dùng khi phát triển)
 
-Bao gồm **Spring Boot** (port `8000`, debug port `5005`), **PostgreSQL 16** (port `5432`) và **Redis 7** (port `6379`).  
+Bao gồm **Spring Boot** (port `8000`, debug port `5005`), **PostgreSQL 16** (port `5433`) và **Redis 7** (port `6379`).  
 Source code được mount vào container — **Spring Boot DevTools** tự reload khi code thay đổi (~1–2s).
 
 ```bash
@@ -153,20 +153,27 @@ Thực thi lệnh Maven trực tiếp bên trong container `soopi_shop_backend` 
 
 **Windows (PowerShell):**
 ```powershell
-docker exec soopi_shop_backend mvn spring-boot:run "-Dspring-boot.run.jvmArguments=" "-Dspring-boot.run.arguments=--server.port=0 --seed --verify"
+docker exec soopi_shop_backend mvn spring-boot:run "-Dspring-boot.run.jvmArguments=" "-Dspring-boot.run.arguments=--spring.main.web-application-type=none --seed --verify"
 ```
 
 **macOS / Linux:**
 ```bash
-docker exec soopi_shop_backend mvn spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--server.port=0 --seed --verify"
+docker exec soopi_shop_backend mvn spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--spring.main.web-application-type=none --seed --verify"
 ```
 
 > [!NOTE]
-> Tham số `-Dspring-boot.run.jvmArguments=""` và `--server.port=0` giúp tiến trình CLI chạy trên cổng tạm và tránh xung đột cổng debug `5005` hay port `8000` với ứng dụng chính đang chạy trong container.
+> Tham số `-Dspring-boot.run.jvmArguments=""` và `--spring.main.web-application-type=none` giúp tiến trình CLI chạy mà không khởi động web server (không mở cổng HTTP), tránh xung đột cổng debug `5005` hay port `8000` với ứng dụng chính đang chạy trong container.
 
 Hoặc sử dụng `docker compose run` với container tạm:
+
+**Windows (PowerShell):**
+```powershell
+docker compose -f docker-compose.dev.yml run --rm --no-deps "--entrypoint=" backend mvn spring-boot:run "-Dspring-boot.run.jvmArguments=" "-Dspring-boot.run.arguments=--spring.main.web-application-type=none --seed --verify"
+```
+
+**macOS / Linux:**
 ```bash
-docker compose -f docker-compose.dev.yml run --rm --no-deps backend bash -c 'mvn spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--server.port=0 --seed --verify"'
+docker compose -f docker-compose.dev.yml run --rm --no-deps --entrypoint "" backend bash -c 'mvn spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--spring.main.web-application-type=none --seed --verify"'
 ```
 
 
