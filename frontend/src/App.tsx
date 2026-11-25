@@ -6,9 +6,6 @@ import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
-
-  console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL)
-  console.log('VITE_CLERK_PUBLISHABLE_KEY:', import.meta.env.VITE_CLERK_PUBLISHABLE_KEY)
  
   return (
     <>

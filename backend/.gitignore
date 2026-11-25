@@ -1,8 +1,10 @@
 target/
 !.mvn/wrapper/maven-wrapper.jar
+
+# Environment files
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.log
 .idea/
 *.iml

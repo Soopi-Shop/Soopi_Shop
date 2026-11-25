@@ -147,17 +147,28 @@ docker compose up -d --build
 
 ### Bước 3 — Seed dữ liệu mẫu & Kiểm chứng
 
-Chạy sau khi container đã khởi động thành công:
+Chạy sau khi container backend đã khởi động thành công (`docker compose -f docker-compose.dev.yml up -d`).
+
+Thực thi lệnh Maven trực tiếp bên trong container `soopi_shop_backend` (không cần cài Java trên máy host):
 
 **Windows (PowerShell):**
 ```powershell
-.\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--seed --verify"
+docker exec soopi_shop_backend mvn spring-boot:run "-Dspring-boot.run.jvmArguments=" "-Dspring-boot.run.arguments=--server.port=0 --seed --verify"
 ```
 
 **macOS / Linux:**
 ```bash
-./mvnw spring-boot:run -Dspring-boot.run.arguments="--seed --verify"
+docker exec soopi_shop_backend mvn spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--server.port=0 --seed --verify"
 ```
+
+> [!NOTE]
+> Tham số `-Dspring-boot.run.jvmArguments=""` và `--server.port=0` giúp tiến trình CLI chạy trên cổng tạm và tránh xung đột cổng debug `5005` hay port `8000` với ứng dụng chính đang chạy trong container.
+
+Hoặc sử dụng `docker compose run` với container tạm:
+```bash
+docker compose -f docker-compose.dev.yml run --rm --no-deps backend bash -c 'mvn spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--server.port=0 --seed --verify"'
+```
+
 
 | Tham số | Chức năng |
 | :--- | :--- |

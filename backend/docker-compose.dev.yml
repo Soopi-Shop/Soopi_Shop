@@ -55,7 +55,10 @@ services:
       SPRING_DEVTOOLS_RESTART_POLL_INTERVAL: "1s"
       SPRING_DEVTOOLS_RESTART_QUIET_PERIOD: "400ms"
     env_file:
-      - .env.example
+      - path: .env.example
+        required: false
+      - path: .env
+        required: false
     volumes:
       - .:/app
       - soopi_shop_m2_cache:/root/.m2
@@ -74,4 +77,5 @@ volumes:
 
 networks:
   soopi_network:
+    name: soopi_network
     driver: bridge

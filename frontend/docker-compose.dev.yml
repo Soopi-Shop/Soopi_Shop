@@ -14,7 +14,7 @@ services:
     env_file:
       - path: .env.example
         required: false
-      - path: .env.local
+      - path: .env
         required: false
     volumes:
       - .:/app
