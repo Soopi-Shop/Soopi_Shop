@@ -1,10 +1,37 @@
-target/
-!.mvn/wrapper/maven-wrapper.jar
+# Environment files
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Build artifacts
+target/
+dist/
+dist-ssr/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor & IDE directories and files
+.vscode/
+!.vscode/extensions.json
 .idea/
 *.iml
-.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS generated files
 .DS_Store
+Thumbs.db

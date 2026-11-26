@@ -1,0 +1,33 @@
+# ==============================================================================
+# Docker Compose - Production Environment
+# Spring Boot Backend sử dụng hạ tầng Cloud (Managed PostgreSQL, Redis, Clerk OAuth2)
+# ==============================================================================
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: soopi_shop_backend_prod
+    restart: always
+    ports:
+      - "${SERVER_PORT:-8000}:8000"
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      # Production optimizations
+      SPRING_DEVTOOLS_RESTART_ENABLED: "false"
+    env_file:
+      - path: .env
+        required: false
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - soopi_prod_network
+
+networks:
+  soopi_prod_network:
+    name: soopi_prod_network
+    driver: bridge

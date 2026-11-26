@@ -1,90 +1,97 @@
-# Soopi Shop — Backend & PostgreSQL Database Setup
+# 🛒 Soopi Shop
 
-Nền tảng thương mại điện tử kinh doanh linh kiện máy tính **Soopi Shop** (UIT – Học phần Quản lý dự án, Nhóm 16).
-
-- **Runtime:** Java 21 (LTS) + Spring Boot `3.4.3`
-- **Database:** PostgreSQL `16` (Docker Compose) + Flyway Migrations (`V1` + `V2`)
-- **Authentication:** Clerk (`clerk_user_id` mapping — PostgreSQL không lưu mật khẩu) + RBAC nội bộ (`CUSTOMER`, `STAFF`, `ADMIN`)
+> **UIT – Học phần Quản lý Dự án | Nhóm 16**
+>
+> Nền tảng thương mại điện tử kinh doanh **linh kiện máy tính**, được xây dựng theo kiến trúc tách biệt Frontend / Backend.
 
 ---
 
-## 1. Kiến trúc Schema hiện tại (18 bảng / 6 phân hệ)
+## 📂 Cấu trúc dự án
 
-| Flyway Migration | Nội dung chính |
-| :--- | :--- |
-| [`V1__initial_schema.sql`](src/main/resources/db/migration/V1__initial_schema.sql) | Khởi tạo **18 bảng** lõi trên 6 phân hệ: Người dùng & RBAC (`users` ánh xạ `clerk_user_id`, `user_addresses`), Danh mục & Linh kiện (`categories`, `brands`, `category_spec_attributes`, `products`, `product_variants`, `product_images`, `product_specifications`), Giỏ hàng & Voucher (`carts`, `cart_items`, `vouchers`), Đơn hàng & Thanh toán (`orders`, `order_items`, `order_status_history`, `payments`), Truy vết tồn kho (`inventory_transactions`), Đánh giá (`reviews`). |
-| [`V2__integrity_hardening.sql`](src/main/resources/db/migration/V2__integrity_hardening.sql) | Gia cố toàn vẹn & hiệu năng: bổ sung `DEFAULT` cho các cột trạng thái/bảo hành, chuyển 3 khóa ngoại bảng `reviews` sang `ON DELETE RESTRICT`, thêm partial index `idx_orders_user_voucher_active` (tối ưu `per_user_limit`) và 2 GIN index `pg_trgm` (`products.name`, `product_variants.sku`) phục vụ tìm kiếm `<= 500ms`. |
-
----
-
-## 2. Yêu cầu môi trường
-
-- **Docker & Docker Compose**
-- **JDK 21** (hoặc set `JAVA_HOME` trỏ tới JDK 21)
-- Maven đã tích hợp sẵn qua Wrapper (`./mvnw` / `.\mvnw.cmd`)
+```
+Soopi_Shop/
+├── backend/        # Spring Boot 3 – REST API, PostgreSQL, Redis, Clerk JWT
+│   └── README.md   → Hướng dẫn chi tiết backend
+├── frontend/       # React 19 + Vite + TypeScript – Giao diện người dùng
+│   └── README.md   → Hướng dẫn chi tiết frontend
+├── docs/               # Tài liệu dự án (sơ đồ, thiết kế, đặc tả)
+│   └── CONTRIBUTING.md → Quy ước Git: branch, commit, PR
+└── README.md           # (file này)
+```
 
 ---
 
-## 3. Hướng dẫn cài đặt & chạy nhanh (Local Dev)
+## 🔗 Tài liệu chi tiết
 
-### Bước 1: Tạo file `.env`
-Sao chép từ `.env.example` và chỉnh thông số nếu cần (**không commit `.env` lên Git**):
+| Module | Mô tả | README |
+| :--- | :--- | :--- |
+| **Backend** | Spring Boot 3, PostgreSQL 16, Redis 7, Clerk OAuth2 | [backend/README.md](./backend/README.md) |
+| **Frontend** | React 19, Vite 8, Tailwind CSS v4, Zustand, TanStack Query | [frontend/README.md](./frontend/README.md) |
+| **Đóng góp** | Quy ước nhánh, commit, quy trình PR | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) |
+
+---
+
+## ⚙️ Yêu cầu môi trường
+
+| Công cụ | Phiên bản tối thiểu | Dùng cho |
+| :--- | :--- | :--- |
+| **Docker** | 24+ | Chạy cả backend lẫn frontend |
+| **Docker Compose** | v2 (plugin) | Orchestrate services |
+| **Node.js** | 20.x hoặc 22.x | Phát triển frontend không qua Docker |
+| **JDK** | 21 | Phát triển backend không qua Docker |
+
+---
+
+## 🚀 Khởi động nhanh (Full Stack)
+
+### Bước 1 — Clone & chuẩn bị file `.env`
 
 ```bash
-cp .env.example .env
+git clone https://github.com/Soopi-Shop/Soopi_Shop.git
+cd Soopi_Shop
+
+# Backend
+cp backend/.env.example backend/.env
+# → Chỉnh sửa backend/.env với credentials thực của bạn
+
+# Frontend
+cp frontend/.env.example frontend/.env
+# → Điền VITE_CLERK_PUBLISHABLE_KEY thực của bạn từ Clerk Dashboard
 ```
 
-Nội dung mặc định trong `.env.example`:
-```env
-POSTGRES_USER=soopi_user
-POSTGRES_PASSWORD=soopi_dev_password_change_me
-POSTGRES_DB=soopi_shop
-POSTGRES_PORT=5433
-DATABASE_URL=postgresql://soopi_user:soopi_dev_password_change_me@localhost:5433/soopi_shop
-```
+### Bước 2 — Khởi chạy Backend (PostgreSQL + Redis + Spring Boot)
 
-### Bước 2: Khởi chạy PostgreSQL 16 qua Docker Compose
 ```bash
-docker compose up -d
+cd backend
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-> **Lưu ý khi pull bản cập nhật Schema mới (chuyển sang Clerk 18 bảng + V2):**  
-> Nếu máy bạn từng chạy bản `V1` cũ (19 bảng có `refresh_tokens`), hãy xóa volume cũ trước khi khởi chạy lại để tránh lệch Flyway checksum:
-> ```bash
-> docker compose down -v
-> docker compose up -d
-> ```
+> Backend sẽ chạy tại `http://localhost:8000`
 
-### Bước 3: Chạy Flyway Migration, Seed dữ liệu mẫu & Kiểm chứng tự động
+### Bước 3 — Khởi chạy Frontend
 
-**Windows (PowerShell):**
-```powershell
-.\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--seed --verify"
-```
-
-**macOS / Linux:**
 ```bash
-./mvnw spring-boot:run -Dspring-boot.run.arguments="--seed --verify"
+cd ../frontend
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-### Kết quả kiểm chứng mong đợi (`--verify`)
-1. **Đếm đủ 18 bảng** với dữ liệu mẫu đồng nhất (`--seed` có tính Idempotent, chạy lại nhiều lần không trùng dữ liệu).
-2. **Chống âm kho (`BR-INV-01`):** `PASS` — constraint `CHECK (stock_quantity >= 0)` chặn cập nhật tồn kho âm.
-3. **Ánh xạ Clerk (`QM-SEC-03`):** `PASS` — không tồn tại cột `users.password_hash`, 100% tài khoản có `clerk_user_id` dạng `user_*`.
-4. **Đối soát sổ cái kho (`BR-INV-02`):** `PASS` — `product_variants.stock_quantity == SUM(inventory_transactions.quantity_change)`.
-5. **Gia cố V2:** `PASS` — toàn bộ FK bảng `reviews` là `ON DELETE RESTRICT` và đủ 3 index mới (`idx_orders_user_voucher_active`, `idx_products_name_trgm`, `idx_product_variants_sku_trgm`).
+> Frontend sẽ chạy tại `http://localhost:5173`
 
 ---
 
-## 4. Bộ tài khoản mẫu (Chỉ dùng cho Local Dev / UAT)
+## 🛠️ Tech Stack tổng quan
 
-> **Cảnh báo (`QM-SEC-03`):** Các `clerk_user_id` dạng `user_seed_*` dưới đây chỉ dùng cho môi trường phát triển cục bộ / UAT, **tuyệt đối không sử dụng trên Production**. PostgreSQL không lưu mật khẩu; xác thực do Clerk quản lý.
+```mermaid
+graph LR
+    FE["Frontend\nReact 19 · Vite · TypeScript\nTailwind CSS · Clerk"]
+    BE["Backend\nSpring Boot 3 · Java 21\nFlyway · SpringDoc"]
+    PG[("PostgreSQL 16")]
+    RD[("Redis 7")]
+    CL["Clerk\nAuth & JWT"]
 
-| Clerk User ID | Email | Role | Status |
-| :--- | :--- | :---: | :---: |
-| `user_seed_admin_01` | `admin@soopishop.vn` | `ADMIN` | `ACTIVE` |
-| `user_seed_staff_01` | `staff@soopishop.vn` | `STAFF` | `ACTIVE` |
-| `user_seed_khach1_01` | `khach1@gmail.com` | `CUSTOMER` | `ACTIVE` |
-| `user_seed_khach2_01` | `khach2@gmail.com` | `CUSTOMER` | `ACTIVE` |
-| `user_seed_khach3_01` | `khach3@gmail.com` | `CUSTOMER` | `ACTIVE` |
-| `user_seed_locked_01` | `locked@gmail.com` | `CUSTOMER` | `LOCKED` |
+    FE -- "REST API (Axios)" --> BE
+    FE -- "JWKS Token" --> CL
+    BE --> PG
+    BE --> RD
+    BE -- "Verify JWT" --> CL
+```
