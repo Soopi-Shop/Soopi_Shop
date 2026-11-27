@@ -16,7 +16,7 @@ Soopi Shop Backend là REST API server cung cấp toàn bộ nghiệp vụ cho c
 | :--- | :--- |
 | **Runtime** | Java 21 (LTS) |
 | **Framework** | Spring Boot `3.4.3` |
-| **Database** | PostgreSQL `16` |
+| **Database** | PostgreSQL `16` (Local Docker / **Neon Serverless Free-tier**) |
 | **Cache** | Redis `7` |
 | **Migration** | Flyway (V1 + V2) |
 | **Authentication** | Clerk OAuth2 / JWT (JWKS) |
@@ -30,12 +30,13 @@ Soopi Shop Backend là REST API server cung cấp toàn bộ nghiệp vụ cho c
 ```
 vn.soopishop
 ├── config/
-│   ├── DotenvEnvironmentPostProcessor   # Nạp biến môi trường từ .env
+│   ├── DotenvEnvironmentPostProcessor   # Nạp DATABASE_URL / FLYWAY_DATABASE_URL (Local & Neon SSL)
 │   └── SecurityConfig                   # Spring Security + OAuth2 Resource Server
 ├── seed/
-│   └── DatabaseSeeder                   # Seed dữ liệu mẫu (idempotent)
+│   ├── CatalogSeedData                  # Dữ liệu mẫu 9 nhóm linh kiện (90 sản phẩm, 124 SKU)
+│   └── DatabaseSeeder                   # Seed dữ liệu mẫu (idempotent theo từng SKU/đơn hàng)
 └── verify/
-    └── DatabaseVerifier                 # Kiểm chứng tính toàn vẹn DB
+    └── DatabaseVerifier                 # Kiểm chứng 6 nhóm quy tắc toàn vẹn & Catalog/Search
 ```
 
 ### Kiến trúc Database (18 bảng / 6 phân hệ)
@@ -143,11 +144,39 @@ docker compose up -d --build
 
 > Build multi-stage với JRE 21 Alpine runtime — image nhỏ gọn, tối ưu bảo mật. Healthcheck tích hợp sẵn.
 
+#### ☁️ Kết nối Cloud Database Free-tier — Neon Serverless PostgreSQL 16
+
+Dự án chọn **Neon** làm dịch vụ Managed PostgreSQL Free-tier (0 VNĐ, không cần thẻ tín dụng, 0.5 GB storage, 100 CU-hours/tháng, chạy **PostgreSQL 16** thuần, hỗ trợ sẵn extension **`pg_trgm`** cho `V2__integrity_hardening.sql` và **Database Branching**).
+
+1. Tạo project PostgreSQL 16 trên [Neon Console](https://console.neon.tech/) (khuyên chọn region `ap-southeast-1` Singapore cho độ trễ thấp tại Việt Nam).
+2. Lấy chuỗi kết nối trong **Connection Details** và dán vào `backend/.env`:
+   ```env
+   # Pooled endpoint cho ứng dụng runtime (HikariCP)
+   DATABASE_URL=postgresql://<user>:<password>@<endpoint>-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+   # Direct endpoint (không có '-pooler') khuyến nghị cho Flyway Migration để tránh xung đột advisory lock trên PgBouncer
+   FLYWAY_DATABASE_URL=postgresql://<user>:<password>@<endpoint>.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+   # Tối ưu Neon scale-to-zero Free-tier (không giữ kết nối nhàn rỗi)
+   DB_POOL_MIN_IDLE=0
+   ```
+   > [!TIP]
+   > `DotenvEnvironmentPostProcessor` tự động giữ tham số SSL và chuẩn hóa `channel_binding=require` (libpq) sang `channelBinding=require` (pgJDBC), nên bạn có thể dán nguyên chuỗi từ Neon Console mà không cần tự chuyển đổi sang `jdbc:postgresql://`.
+3. Chạy Flyway Migration + Seed + Kiểm chứng trực tiếp lên Neon từ máy host (không cần container PostgreSQL local):
+   ```powershell
+   # Windows (PowerShell)
+   .\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--spring.main.web-application-type=none --seed --verify"
+   ```
+   ```bash
+   # macOS / Linux
+   ./mvnw spring-boot:run -Dspring-boot.run.arguments="--spring.main.web-application-type=none --seed --verify"
+   ```
+
 ---
 
 ### Bước 3 — Seed dữ liệu mẫu & Kiểm chứng
 
-Chạy sau khi container backend đã khởi động thành công (`docker compose -f docker-compose.dev.yml up -d`).
+Chạy sau khi container backend đã khởi động thành công (`docker compose -f docker-compose.dev.yml up -d`) — hoặc chạy trực tiếp bằng `mvnw` khi trỏ sang Neon Cloud DB như hướng dẫn ở trên.
 
 Thực thi lệnh Maven trực tiếp bên trong container `soopi_shop_backend` (không cần cài Java trên máy host):
 
@@ -168,30 +197,31 @@ Hoặc sử dụng `docker compose run` với container tạm:
 
 **Windows (PowerShell):**
 ```powershell
-docker compose -f docker-compose.dev.yml run --rm --no-deps "--entrypoint=" backend mvn spring-boot:run "-Dspring-boot.run.jvmArguments=" "-Dspring-boot.run.arguments=--spring.main.web-application-type=none --seed --verify"
+docker compose -f docker-compose.dev.yml run --rm --no-deps --entrypoint mvn backend spring-boot:run "-Dspring-boot.run.jvmArguments=" "-Dspring-boot.run.arguments=--spring.main.web-application-type=none --seed --verify"
 ```
 
 **macOS / Linux:**
 ```bash
-docker compose -f docker-compose.dev.yml run --rm --no-deps --entrypoint "" backend bash -c 'mvn spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--spring.main.web-application-type=none --seed --verify"'
+docker compose -f docker-compose.dev.yml run --rm --no-deps --entrypoint mvn backend spring-boot:run -Dspring-boot.run.jvmArguments="" -Dspring-boot.run.arguments="--spring.main.web-application-type=none --seed --verify"
 ```
 
 
 | Tham số | Chức năng |
 | :--- | :--- |
-| `--seed` | Chèn dữ liệu mẫu vào DB (idempotent — chạy nhiều lần không bị trùng) |
-| `--verify` | Kiểm chứng 5 business rule của DB |
+| `--seed` | Chèn dữ liệu mẫu **9 danh mục** (CPU, GPU, Mainboard, RAM, SSD/HDD, PSU, Case, Tản nhiệt, Phụ kiện) với **90 sản phẩm, 120+ biến thể SKU, 48 thuộc tính thông số** (idempotent — chạy nhiều lần không bị trùng) |
+| `--verify` | Kiểm chứng **6 nhóm quy tắc** của CSDL & dữ liệu Catalog/Search |
 
 <details>
 <summary>Kết quả kiểm chứng mong đợi</summary>
 
 | # | Kiểm chứng | Kết quả |
 | --- | :--- | :---: |
-| 1 | Đếm đủ 18 bảng với dữ liệu mẫu | `PASS` |
+| 1 | Đếm đủ 18 bảng với dữ liệu mẫu (9 danh mục, 22 thương hiệu, 48 thuộc tính spec, 90 sản phẩm, 120+ biến thể) | `PASS` |
 | 2 | **BR-INV-01** — Chống tồn kho âm (`CHECK stock_quantity >= 0`) | `PASS` |
 | 3 | **QM-SEC-03** — Không tồn tại `users.password_hash`, 100% user có `clerk_user_id` dạng `user_*` | `PASS` |
 | 4 | **BR-INV-02** — `product_variants.stock_quantity == SUM(inventory_transactions.quantity_change)` | `PASS` |
-| 5 | **V2 Hardening** — FK `reviews` là `ON DELETE RESTRICT`, đủ 3 index mới | `PASS` |
+| 5 | **V2 Hardening** — FK `reviews` là `ON DELETE RESTRICT`, đủ 3 index mới (`idx_orders_user_voucher_active`, `pg_trgm`) | `PASS` |
+| 6 | **Catalog & Search Readiness** — Đủ 9 nhóm linh kiện, ≥ 10 SP & ≥ 4 spec lọc mỗi nhóm, đủ ảnh đại diện & không lệch danh mục spec | `PASS` |
 
 </details>
 
@@ -257,8 +287,12 @@ Debugger mode: Attach to remote JVM
 | Biến | Mô tả | Mặc định |
 | :--- | :--- | :--- |
 | `SERVER_PORT` | Cổng HTTP của Spring Boot | `8000` |
-| `POSTGRES_HOST` | Host PostgreSQL | `postgres` |
-| `POSTGRES_PORT` | Cổng PostgreSQL | `5432` |
+| `DATABASE_URL` | Chuỗi kết nối PostgreSQL (Docker local hoặc Neon Cloud SSL) | _(xem `.env.example`)_ |
+| `FLYWAY_DATABASE_URL` | Direct endpoint riêng cho Flyway Migration khi dùng Neon Pooled endpoint | _(tùy chọn)_ |
+| `DB_POOL_MIN_IDLE` | Số kết nối nhàn rỗi tối thiểu HikariCP (`0` cho Neon scale-to-zero) | `2` |
+| `DB_POOL_MAX_SIZE` | Số kết nối tối đa HikariCP | `10` |
+| `POSTGRES_HOST` | Host PostgreSQL (Docker local) | `postgres` |
+| `POSTGRES_PORT` | Cổng PostgreSQL (Docker local) | `5432` |
 | `REDIS_HOST` | Host Redis | `redis` |
 | `REDIS_PORT` | Cổng Redis | `6379` |
 | `CLERK_ISSUER_URI` | JWKS Issuer URI từ Clerk Dashboard | _(bắt buộc khi bật OAuth2)_ |
