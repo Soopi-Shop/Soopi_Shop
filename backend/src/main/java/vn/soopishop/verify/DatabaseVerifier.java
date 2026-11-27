@@ -32,6 +32,18 @@ public class DatabaseVerifier {
             "reviews"
     );
 
+    private static final List<String> REQUIRED_CATEGORY_SLUGS = List.of(
+            "cpu",
+            "gpu",
+            "mainboard",
+            "ram",
+            "ssd-hdd",
+            "psu",
+            "case",
+            "tan-nhiet",
+            "phu-kien"
+    );
+
     private final JdbcTemplate jdbc;
     private final TransactionTemplate txTemplate;
 
@@ -51,7 +63,7 @@ public class DatabaseVerifier {
         txTemplate.executeWithoutResult(status -> {
             status.setRollbackOnly();
             try {
-                jdbc.update("UPDATE product_variants SET stock_quantity = -1 WHERE id = 1");
+                jdbc.update("UPDATE product_variants SET stock_quantity = -1 WHERE id = (SELECT MIN(id) FROM product_variants)");
                 throw new IllegalStateException("FAIL: Negative stock was allowed!");
             } catch (DataIntegrityViolationException ex) {
                 System.out.println("  PASS: Constraint rejected negative stock -> " + ex.getMostSpecificCause().getMessage());
@@ -120,5 +132,65 @@ public class DatabaseVerifier {
             }
         }
         System.out.println("  PASS: V2 hardening verified (reviews FKs = RESTRICT, voucher & pg_trgm indexes present).");
+
+        System.out.println("\n=== 6. VERIFY CATALOG & SEARCH READINESS (ALL 9 CATEGORIES & SPECS) ===");
+        for (String slug : REQUIRED_CATEGORY_SLUGS) {
+            Map<String, Object> stats = jdbc.queryForMap(
+                    """
+                    SELECT c.name,
+                           (SELECT COUNT(*) FROM category_spec_attributes csa WHERE csa.category_id = c.id AND csa.is_filterable = TRUE) AS attr_cnt,
+                           (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS prod_cnt,
+                           (SELECT COUNT(*) FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.category_id = c.id) AS var_cnt
+                    FROM categories c
+                    WHERE c.slug = ? AND c.is_active = TRUE
+                    """,
+                    slug
+            );
+            long attrCnt = ((Number) stats.get("attr_cnt")).longValue();
+            long prodCnt = ((Number) stats.get("prod_cnt")).longValue();
+            long varCnt = ((Number) stats.get("var_cnt")).longValue();
+            if (attrCnt < 4 || prodCnt < 10 || varCnt < 10) {
+                throw new IllegalStateException(
+                        "FAIL: Category '" + slug + "' has insufficient seed data: attrs=" + attrCnt + ", products=" + prodCnt + ", variants=" + varCnt
+                );
+            }
+            System.out.printf("  %-12s : %2d attrs | %2d products | %2d variants (%s)%n",
+                    slug, attrCnt, prodCnt, varCnt, stats.get("name"));
+        }
+
+        Integer productsWithoutVariants = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM products p WHERE NOT EXISTS (SELECT 1 FROM product_variants pv WHERE pv.product_id = p.id)",
+                Integer.class
+        );
+        Integer productsWithoutPrimaryImg = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM products p WHERE NOT EXISTS (SELECT 1 FROM product_images pi WHERE pi.product_id = p.id AND pi.is_primary = TRUE)",
+                Integer.class
+        );
+        Integer productsWithoutSpecs = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM products p WHERE (SELECT COUNT(*) FROM product_specifications ps WHERE ps.product_id = p.id) < 3",
+                Integer.class
+        );
+        Integer crossCategorySpecs = jdbc.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM product_specifications ps
+                JOIN products p ON p.id = ps.product_id
+                JOIN category_spec_attributes csa ON csa.id = ps.spec_attribute_id
+                WHERE p.category_id <> csa.category_id
+                """,
+                Integer.class
+        );
+        if ((productsWithoutVariants != null && productsWithoutVariants > 0)
+                || (productsWithoutPrimaryImg != null && productsWithoutPrimaryImg > 0)
+                || (productsWithoutSpecs != null && productsWithoutSpecs > 0)
+                || (crossCategorySpecs != null && crossCategorySpecs > 0)) {
+            throw new IllegalStateException(
+                    "FAIL: Catalog integrity errors -> missingVariants=" + productsWithoutVariants
+                            + ", missingPrimaryImg=" + productsWithoutPrimaryImg
+                            + ", sparseSpecs=" + productsWithoutSpecs
+                            + ", crossCategorySpecs=" + crossCategorySpecs
+            );
+        }
+        System.out.println("  PASS: All 9 categories, 90+ products, variants, primary images & specs verified for Catalog & Search.");
     }
 }
